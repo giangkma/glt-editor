@@ -211,3 +211,7 @@ export const fetchSuggestions = (jobId: string) =>
 /** AI xem video → caption + hashtag + chữ ảnh bìa */
 export const makeSuggestions = (jobId: string) =>
   api<{ suggestions: PostSuggestions }>(`/api/edit/${jobId}/suggest`, { method: "POST" }).then((d) => d.suggestions);
+
+/** Studio: xuất lại với chữ / hiệu ứng đã sửa (không dựng lại video nền) */
+export const recomposeEdit = (jobId: string) =>
+  api<{ job: EditJob }>(`/api/edit/${jobId}/recompose`, { method: "POST" }).then((d) => d.job);

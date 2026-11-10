@@ -210,6 +210,33 @@ export function validatePlan(raw, words, templates, { duration = Infinity } = {}
   }
   plan.grade = GRADES[raw.grade] ? raw.grade : null;
 
+  // OVERLAYS: hiệu ứng minh hoạ — sai thì bỏ
+  plan.overlays = [];
+  {
+    const kept = new Set(widx);
+    const ICON = ["check", "cross", "star", "heart", "arrow", "sparkle", "fire"];
+    const str = (v, n) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, n) : "");
+    let lastPos = -99;
+    for (const o of (Array.isArray(raw.overlays) ? raw.overlays : []).slice(0, 10)) {
+      const w = Number(o?.word);
+      if (!["title", "icon", "card", "pill"].includes(o?.type) || !kept.has(w)) continue;
+      const pos = widx.indexOf(w);
+      if (pos - lastPos < 6) continue; // quá sát hiệu ứng trước
+      const x = { type: o.type, w };
+      const w2 = Number(o?.until_word);
+      if (kept.has(w2) && w2 > w) x.w2 = w2;
+      if (o.type === "title") Object.assign(x, { text: str(o.text, 40), sub: str(o.sub, 60) });
+      if (o.type === "pill") x.text = str(o.text, 70);
+      if (o.type === "card") Object.assign(x, { title: str(o.title ?? o.text, 40), sub: str(o.sub, 80), icon: ICON.includes(o.icon) ? o.icon : "star" });
+      if (o.type === "icon") x.icon = ICON.includes(o.icon) ? o.icon : "check";
+      if ((x.type === "title" || x.type === "pill") && !x.text) continue;
+      if (x.type === "card" && !x.title) continue;
+      plan.overlays.push(x);
+      lastPos = pos;
+      if (plan.overlays.length >= 6) break;
+    }
+  }
+
   return { plan, errors, warnings };
 }
 
@@ -299,6 +326,24 @@ const PLAN_TOOL = {
         },
         required: ["from_word", "to_word"],
       },
+      overlays: {
+        type: "array",
+        description:
+          "HIỆU ỨNG MINH HOẠ nhẹ nhàng (tối đa 6, ~1 cái mỗi 6–10 giây, không trùng thời điểm): title = tiêu đề to khi chuyển ý; icon = biểu tượng tự vẽ; card = thẻ thông tin; pill = thẻ chữ bo góc cho câu hỏi / câu chốt",
+        items: {
+          type: "object",
+          properties: {
+            type: { type: "string", enum: ["title", "icon", "card", "pill"] },
+            word: { type: "integer", description: "số thứ tự từ (trong đoạn giữ) mà hiệu ứng xuất hiện" },
+            until_word: { type: "integer", description: "(tuỳ chọn) số thứ tự từ mà hiệu ứng biến mất" },
+            text: { type: "string", description: "title: 1–4 từ, bọc *1 từ* để đổi sang màu nhấn; pill: câu ≤ 9 từ" },
+            sub: { type: "string", description: "title: dòng phụ ≤ 8 từ; card: mô tả ≤ 10 từ" },
+            title: { type: "string", description: "card: tiêu đề ≤ 5 từ" },
+            icon: { type: "string", enum: ["check", "cross", "star", "heart", "arrow", "sparkle", "fire"] },
+          },
+          required: ["type", "word"],
+        },
+      },
       grade: {
         type: "string",
         enum: Object.keys(GRADES_ENUM),
@@ -335,6 +380,12 @@ Quy tắc bắt buộc của web:
 6. Video không có lời nào → wranges = [], manual = [], chỉ dùng scenes.
 7. CÂU MÓC (hook): người xem TikTok quyết định ở lại trong 1–2 giây đầu. Chọn 1 câu NGẮN (2–4 giây) gây tò mò nhất trong phần lời đã giữ (câu hỏi, con số, điều bất ngờ, lời hứa kết quả) → web app chép câu đó lên đầu video rồi mới chạy video từ đầu. Nếu câu mở đầu đã là câu móc thì bỏ trống hook. Đồng thời, nếu có cảnh không lời thật ấn tượng, có thể đặt nó trong scenes ngay đầu video.
 8. grade: chọn bộ màu hợp không khí khung hình.
+9. overlays — HIỆU ỨNG MINH HOẠ (vẽ trên video, người dùng sửa được từng chữ sau): sinh động nhưng NHẸ NHÀNG, không rối mắt.
+   - title: mở đầu / chuyển ý lớn — 1–4 từ, bọc đúng 1 từ khoá bằng *…* (đổi sang màu nhấn), sub ≤ 8 từ (vd "Trekking *Đà Giang*" / "Rừng nguyên sinh · Hồ Mắt Ngọc").
+   - icon: check (đúng, nên làm), cross (sai, đừng), star, heart, arrow, sparkle, fire — đặt đúng từ khiến nó có nghĩa.
+   - card: khái niệm / mục liệt kê — title ≤ 5 từ, sub ≤ 10 từ, kèm icon.
+   - pill: câu hỏi tu từ hoặc câu chốt ngắn ≤ 9 từ (vd "Đi trekking có mệt không...?").
+   - Tối đa 6, cách nhau ≥ 5 giây, không 2 cái cùng lúc; không chép y nguyên phụ đề. Video ngắn < 15 giây: 1–2 cái là đủ.
 
 `;
 }
@@ -622,7 +673,7 @@ export function toPy(v) {
 
 export function buildDuAnPy(
   plan,
-  { src, outName = "reel", music = [], matte = "rvm", transition = "muot", outRes = [1080, 1920], phude = "tung-tu", accent = [255, 122, 26], hook = true, grade = null },
+  { src, outName = "reel", music = [], matte = "rvm", transition = "muot", outRes = [1080, 1920], phude = "tung-tu", accent = [255, 122, 26], hook = true, grade = null, webText = false },
 ) {
   const manual = plan.manual.map((c, ci) => `    ${toPy(c)},  # ${ci}`).join("\n");
   const broll = plan.broll.map((b) => `    (${b.from}, ${b.to}, ${toPy(b.template)}, ${toPy(b.params)}),`).join("\n");
@@ -643,6 +694,8 @@ TACH_PHONG = False   # True = bật lại nền tối xoá phông (DARK) + chữ
 CHUYEN_CANH = ${toPy(transition)}  # "muot" (zoom từ từ, hoà tan, không chớp trắng) | "manh" (kiểu cũ)
 PHU_DE = ${toPy(phude)}  # "tung-tu" (kiểu TikTok: hiện từng từ) | "cum" (kiểu cũ)
 MAU_NHAN = (${accent.join(", ")})  # màu chữ nhấn / hộp nhấn
+CHU_TREN_WEB = ${webText ? "True" : "False"}  # True = chữ + hiệu ứng do web vẽ (sửa được từng chữ trong Studio)
+OVERLAYS = ${toPy(plan.overlays ?? [])}
 HOOK = ${hook && plan.hook ? `(${plan.hook.from}, ${plan.hook.to})  # câu móc: ${String(plan.hook.reason ?? "").replace(/\n/g, " ")}` : "None"}
 ${grade ? `GRADE = ${toPy(grade)}  # bộ màu` : "# GRADE = mặc định"}
 

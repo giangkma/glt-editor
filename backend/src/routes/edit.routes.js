@@ -9,6 +9,13 @@ import os from "node:os";
 import { coverFiles, INSERT_CHOICES } from "../services/cover.js";
 import { makeSuggestions, readSuggestions } from "../services/suggest.js";
 import { getScript } from "../services/skills/revise.js";
+import fsp from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import { readTimeline, writeTimeline, sanitizeTimeline } from "../services/timeline.js";
+import { assetPath, canCompose } from "../services/compose.js";
+import { probe } from "../services/editor/ffmpeg.js";
+import { projectDir } from "../services/skills/reelPipeline.js";
 
 const coverUpload = multer({
   dest: os.tmpdir(),
@@ -238,6 +245,87 @@ router.get("/:jobId/script", async (req, res) => {
 router.post("/:jobId/revise", async (req, res) => {
   const job = requireJob(req);
   const next = await jobs.revise(job.id, req.body ?? {});
+  res.status(202).json({ success: true, jobId: next.id, eventsUrl: `/api/edit/${next.id}/events`, job: next });
+});
+
+// ───────────── STUDIO: sửa từng chữ / hiệu ứng, xem trực tiếp, ghép lại ─────────────
+const projOf = (job) => {
+  if (job.pipeline !== "skill") throw new AppError("Studio chỉ dùng cho video dựng bằng skill.", 409, "NOT_SKILL");
+  return projectDir(job._options.projectId);
+};
+
+/** GET /api/edit/:jobId/timeline — chữ + hiệu ứng + thông tin video nền */
+router.get("/:jobId/timeline", async (req, res) => {
+  const job = requireJob(req);
+  const proj = projOf(job);
+  const timeline = await readTimeline(proj);
+  if (!timeline) throw new AppError("Bản này chưa có dữ liệu chữ cho Studio — hãy edit lại video.", 404, "NO_TIMELINE");
+  const bases = JSON.parse(await fsp.readFile(path.join(proj, "base.json"), "utf8").catch(() => "{}"));
+  const base = bases[job.mode === "final" ? "final" : "draft"];
+  const info = base && existsSync(base.path) ? await probe(base.path) : null;
+  res.json({
+    success: true,
+    timeline,
+    base: info ? { url: `/api/edit/${job.id}/base`, width: info.width, height: info.height, fps: info.fps, duration: info.videoDuration } : null,
+    canCompose: await canCompose(),
+  });
+});
+
+/** PUT /api/edit/:jobId/timeline — lưu chỉnh sửa (tự lưu từ Studio) */
+router.put("/:jobId/timeline", async (req, res) => {
+  const job = requireJob(req);
+  const proj = projOf(job);
+  const prev = await readTimeline(proj);
+  let tl;
+  try {
+    tl = sanitizeTimeline(req.body?.timeline, prev);
+  } catch (err) {
+    throw new AppError(err.message, 400, "INVALID_TIMELINE");
+  }
+  await writeTimeline(proj, tl);
+  res.json({ success: true, timeline: tl });
+});
+
+/** GET /api/edit/:jobId/base — video nền (chưa có chữ) để xem trước trong Studio */
+router.get("/:jobId/base", async (req, res, next) => {
+  const job = requireJob(req);
+  const bases = JSON.parse(await fsp.readFile(path.join(projOf(job), "base.json"), "utf8").catch(() => "{}"));
+  const base = bases[job.mode === "final" ? "final" : "draft"];
+  if (!base || !existsSync(base.path)) throw new AppError("Không còn video nền.", 404, "NO_BASE");
+  res.sendFile(base.path, (err) => err && !res.headersSent && next(err));
+});
+
+const assetUpload = multer({
+  dest: os.tmpdir(),
+  limits: { fileSize: 20 * 1024 * 1024, files: 1 },
+  fileFilter: (_req, file, cb) =>
+    /^image\/(png|jpe?g|webp)$/.test(file.mimetype) ? cb(null, true) : cb(new AppError("Chỉ nhận ảnh PNG, JPG, WEBP.", 400, "INVALID_FILE")),
+});
+
+/** POST /api/edit/:jobId/assets — tải ảnh minh hoạ lên → { src: "asset:<tên>", url } */
+router.post("/:jobId/assets", assetUpload.single("image"), async (req, res) => {
+  const job = requireJob(req);
+  if (!req.file) throw new AppError("Thiếu ảnh.", 400, "MISSING_FILE");
+  const dir = path.join(projOf(job), "assets");
+  await fsp.mkdir(dir, { recursive: true });
+  const ext = { "image/png": ".png", "image/jpeg": ".jpg", "image/jpg": ".jpg", "image/webp": ".webp" }[req.file.mimetype] ?? ".png";
+  const name = `${randomUUID().slice(0, 12)}${ext}`;
+  await fsp.copyFile(req.file.path, path.join(dir, name));
+  await fsp.rm(req.file.path, { force: true });
+  res.json({ success: true, src: `asset:${name}`, url: `/api/edit/${job.id}/assets/${name}` });
+});
+
+/** GET /api/edit/:jobId/assets/:name — ảnh minh hoạ */
+router.get("/:jobId/assets/:name", (req, res, next) => {
+  const job = requireJob(req);
+  if (!/^[\w.-]+$/.test(req.params.name)) throw new AppError("Tên ảnh không hợp lệ.", 400, "INVALID_NAME");
+  res.sendFile(assetPath(projOf(job), req.params.name), (err) => err && !res.headersSent && next(new AppError("Không có ảnh.", 404, "NO_ASSET")));
+});
+
+/** POST /api/edit/:jobId/recompose — xuất lại với chữ / hiệu ứng đã sửa → 202 { job } */
+router.post("/:jobId/recompose", (req, res) => {
+  const job = requireJob(req);
+  const next = jobs.recompose(job.id);
   res.status(202).json({ success: true, jobId: next.id, eventsUrl: `/api/edit/${next.id}/events`, job: next });
 });
 

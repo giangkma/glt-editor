@@ -13,6 +13,7 @@
     "skill:setup": "bash scripts/setup-skill.sh skills/reel-doc-3d"
   },
   "dependencies": {
+    "@napi-rs/canvas": "^0.1.70",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^5.1.0",

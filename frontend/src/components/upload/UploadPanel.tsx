@@ -45,6 +45,7 @@ export function UploadPanel() {
         onReset={startOver}
         onApprove={(export4k, fps60) => edit.finalize(edit.job!.id, export4k, fps60)}
         onRevise={(edits) => edit.revise(edit.job!.id, edits)}
+        onRecompose={() => edit.recompose(edit.job!.id)}
       />
     );
   }

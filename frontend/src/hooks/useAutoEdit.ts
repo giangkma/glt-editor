@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { cancelEdit, finalizeEdit, reviseEdit, startEdit, subscribeEdit } from "@/lib/edit";
+import { cancelEdit, finalizeEdit, recomposeEdit, reviseEdit, startEdit, subscribeEdit } from "@/lib/edit";
 import type { EditJob, EditOptions, ReviseEdits } from "@/types/edit";
 
 type Phase = "idle" | "starting" | "processing" | "done" | "error" | "cancelled";
@@ -64,6 +64,9 @@ export function useAutoEdit() {
   /** Chỉnh nhanh bản nháp → dựng lại */
   const revise = useCallback((draftJobId: string, edits: ReviseEdits) => run(() => reviseEdit(draftJobId, edits)), [run]);
 
+  /** Studio: xuất lại chữ + hiệu ứng */
+  const recompose = useCallback((jobId: string) => run(() => recomposeEdit(jobId)), [run]);
+
   const cancel = useCallback(async () => {
     if (!job) return;
     await cancelEdit(job.id);
@@ -81,5 +84,5 @@ export function useAutoEdit() {
 
   useEffect(() => stopListening, []);
 
-  return { phase, job, error, start, finalize, revise, cancel, reset };
+  return { phase, job, error, start, finalize, revise, recompose, cancel, reset };
 }

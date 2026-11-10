@@ -6,6 +6,7 @@ import type { EditJob } from "@/types/edit";
 import { CoverEditor } from "@/components/cover/CoverEditor";
 import { SuggestPanel } from "./SuggestPanel";
 import { ReviseEditor } from "./ReviseEditor";
+import { Studio } from "@/components/studio/Studio";
 import type { ReviseEdits } from "@/types/edit";
 import { QUALITY_OPTIONS, Segmented, fromQuality, qualityOf, type Quality } from "./EditOptions";
 
@@ -18,6 +19,8 @@ interface EditResultProps {
   onApprove?: (export4k: boolean, fps60: boolean) => void;
   /** Bản nháp skill: chỉnh nhanh rồi dựng lại */
   onRevise?: (edits: ReviseEdits) => void;
+  /** Studio: xuất lại với chữ / hiệu ứng đã sửa */
+  onRecompose?: () => void;
 }
 
 const fmtSec = (s: number) =>
@@ -41,10 +44,11 @@ function statChips(job: EditJob): string[] {
   ].filter((x): x is string => Boolean(x));
 }
 
-export function EditResult({ job, videoUrl, downloadUrl, onReset, onApprove, onRevise }: EditResultProps) {
+export function EditResult({ job, videoUrl, downloadUrl, onReset, onApprove, onRevise, onRecompose }: EditResultProps) {
   const [quality, setQuality] = useState<Quality>(qualityOf(job));
   const [showCover, setShowCover] = useState(Boolean(job.cover));
   const [showRevise, setShowRevise] = useState(false);
+  const [studio, setStudio] = useState(false);
   const [coverSeed, setCoverSeed] = useState<{ script: string; block: string; n: number } | null>(null);
   const chips = statChips(job);
   const r = job.review;
@@ -138,6 +142,32 @@ export function EditResult({ job, videoUrl, downloadUrl, onReset, onApprove, onR
             </div>
           )}
         </div>
+      )}
+
+      {job.pipeline === "skill" && onRecompose && (
+        <button
+          type="button"
+          onClick={() => setStudio(true)}
+          className="group flex w-full items-center justify-between rounded-2xl border border-accent/40 bg-gradient-to-r from-accent/10 to-transparent px-5 py-4 text-left transition hover:border-accent"
+        >
+          <span>
+            <span className="block text-sm font-medium text-zinc-100">✎ Mở Studio — sửa từng chữ & hiệu ứng</span>
+            <span className="block text-xs text-zinc-400">
+              Sửa chữ, màu, cỡ, vị trí, lúc xuất hiện; thêm tiêu đề, icon, thẻ, ảnh minh hoạ — xem ngay trên video
+            </span>
+          </span>
+          <span className="text-lg text-accent transition group-hover:translate-x-0.5">→</span>
+        </button>
+      )}
+      {studio && onRecompose && (
+        <Studio
+          job={job}
+          onClose={() => setStudio(false)}
+          onExport={() => {
+            setStudio(false);
+            onRecompose();
+          }}
+        />
       )}
 
       {isDraft && onRevise && (

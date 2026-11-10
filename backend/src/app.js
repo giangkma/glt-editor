@@ -7,6 +7,8 @@ import editRoutes from "./routes/edit.routes.js";
 import skillsRoutes from "./routes/skills.routes.js";
 import importRoutes from "./routes/import.routes.js";
 import brandRoutes from "./routes/brand.routes.js";
+import path from "node:path";
+import { FONT_FILES } from "./services/compose.js";
 import { errorHandler, notFound } from "./middleware/errorHandler.js";
 import { AppError } from "./utils/AppError.js";
 
@@ -33,6 +35,12 @@ export function createApp() {
   app.use("/api/skills", skillsRoutes);
   app.use("/api/import", importRoutes);
   app.use("/api/brand", brandRoutes);
+  // Font của skill cho Studio (xem trước dùng đúng font của bản xuất)
+  app.get("/api/fonts/:file", (req, res, next) => {
+    if (!FONT_FILES.some(([f]) => f === req.params.file)) return next(new AppError("Không có font này.", 404, "NO_FONT"));
+    res.set("Cache-Control", "public, max-age=86400");
+    res.sendFile(path.join(config.skillsDir, "reel-doc-3d", "fonts", req.params.file), (err) => err && !res.headersSent && next(err));
+  });
 
   app.use(notFound);
   app.use(errorHandler);

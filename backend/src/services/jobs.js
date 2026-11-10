@@ -185,6 +185,18 @@ class JobManager extends EventEmitter {
     return this.snapshot(j);
   }
 
+  /** Studio: ghép lại chữ + hiệu ứng lên video nền đã có (không dựng lại, không gọi AI) → job mới cùng chế độ */
+  recompose(id) {
+    const src = this.jobs.get(id);
+    if (!src) throw new AppError("Không tìm thấy job.", 404, "JOB_NOT_FOUND");
+    if (src.pipeline !== "skill" || src.status !== "done") throw new AppError("Chỉ ghép lại được video skill đã dựng xong.", 409, "NOT_READY");
+    const busy = [...this.jobs.values()].some((j) => !isTerminal(j.status) && j._options.projectId === src._options.projectId);
+    if (busy) throw new AppError("Dự án này đang được dựng, đợi xong rồi xuất.", 409, "PROJECT_BUSY");
+    const { revised, ...opts } = src._options;
+    const job = this.create(src._video, { ...opts, mode: src.mode, recompose: true, projectId: src._options.projectId });
+    return job;
+  }
+
   async clearCover(id) {
     const job = this.jobs.get(id);
     if (!job) throw new AppError("Không tìm thấy job.", 404, "JOB_NOT_FOUND");

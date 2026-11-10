@@ -14,7 +14,7 @@ import { config } from "../../config.js";
  * @param {{s:number,e:number}|null} p.hook
  * @param {{overlay:string,duration:number,darken:number}|null} p.cta
  */
-export async function finishVideo({ input, output, hook, cta, signal, onProgress }) {
+export async function finishVideo({ input, output, hook, cta, outro = 0, signal, onProgress }) {
   const info = await probe(input);
   const fps = Math.round(info.fps || 30);
   const W = info.width;
@@ -56,11 +56,23 @@ export async function finishVideo({ input, output, hook, cta, signal, onProgress
     g.push(`[1:v]scale=${W}:${H}:force_original_aspect_ratio=decrease:flags=lanczos,format=rgba,fade=t=in:st=${(X * 0.6).toFixed(2)}:d=0.35:alpha=1[cov]`);
     g.push(`[cbg][cov]overlay=(W-w)/2:(H-h)/2:shortest=1,${norm}[cv]`);
     g.push(`[${vMain}]settb=AVTB[xa];[cv]settb=AVTB[xb]`);
-    g.push(`[xa][xb]xfade=transition=fade:duration=${X}:offset=${(total - X).toFixed(3)}[vo]`);
-    g.push(`[${aMain}]afade=t=out:st=${Math.max(0, total - 0.5).toFixed(3)}:d=${(0.5 + D * 0.5).toFixed(2)},apad=pad_dur=${D.toFixed(2)},atrim=0:${(total - X + D).toFixed(3)}[ao]`);
+    g.push(`[xa][xb]xfade=transition=fade:duration=${X}:offset=${(total - X).toFixed(3)}[vx]`);
+    g.push(`[${aMain}]afade=t=out:st=${Math.max(0, total - 0.5).toFixed(3)}:d=${(0.5 + D * 0.5).toFixed(2)},apad=pad_dur=${D.toFixed(2)},atrim=0:${(total - X + D).toFixed(3)}[ax]`);
   } else {
-    g.push(`[${vMain}]null[vo]`);
-    g.push(`[${aMain}]anull[ao]`);
+    g.push(`[${vMain}]null[vx]`);
+    g.push(`[${aMain}]anull[ax]`);
+  }
+  // ── Kết thúc êm: giữ khung cuối thêm ~1,5s, hình + tiếng mờ dần (không cắt cụt) ──
+  const before = cta ? total - 0.35 + cta.duration : total;
+  const O = Math.max(0, Math.min(3, outro));
+  if (O > 0) {
+    const F = O + 0.4; // bắt đầu mờ trước khi hết video một chút → chuyển động còn đang chạy
+    const len = before + O;
+    g.push(`[vx]tpad=stop_mode=clone:stop_duration=${O.toFixed(2)},trim=duration=${len.toFixed(3)},fade=t=out:st=${(len - F).toFixed(3)}:d=${F.toFixed(2)}[vo]`);
+    g.push(`[ax]apad=pad_dur=${(O + 0.5).toFixed(2)},atrim=0:${len.toFixed(3)},afade=t=out:st=${Math.max(0, len - F - 0.4).toFixed(3)}:d=${(F + 0.4).toFixed(2)}[ao]`);
+  } else {
+    g.push(`[vx]null[vo]`);
+    g.push(`[ax]anull[ao]`);
   }
   // [vl] chưa dùng khi không có CTA → bỏ đi
   if (!cta) g.push(`[vl]nullsink`);
@@ -75,6 +87,6 @@ export async function finishVideo({ input, output, hook, cta, signal, onProgress
       "-movflags", "+faststart",
     ])
     .output(output);
-  await runCommand(cmd, { signal, expectedDuration: total + (cta?.duration ?? 0), onProgress, label: "hoan-thien" });
-  return { hook: useHook ? hd : 0, cta: cta ? cta.duration : 0 };
+  await runCommand(cmd, { signal, expectedDuration: before + O, onProgress, label: "hoan-thien" });
+  return { hook: useHook ? hd : 0, cta: cta ? cta.duration : 0, outro: O };
 }

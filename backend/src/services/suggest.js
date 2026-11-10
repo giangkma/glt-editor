@@ -22,13 +22,13 @@ const POST_TOOL = {
     properties: {
       captions: {
         type: "array",
-        description: "3 phương án caption TikTok khác giọng điệu",
+        description: "3 phương án caption TikTok NGẮN, khác giọng điệu (có thể 1 phương án tiếng Anh hoặc trộn Anh–Việt)",
         items: {
           type: "object",
           properties: {
-            style: { type: "string", description: "kiểu: Gây tò mò | Kể chuyện | Bán hàng…" },
-            text: { type: "string", description: "caption tiếng Việt (1–3 câu, có emoji vừa phải, câu kêu gọi hành động ở cuối; KHÔNG chứa hashtag)" },
-            hashtags: { type: "array", items: { type: "string" }, description: "5–8 hashtag, không dấu, bắt đầu bằng #" },
+            style: { type: "string", description: "kiểu ngắn: Gây tò mò | Chill | English | Rủ đi…" },
+            text: { type: "string", description: "caption 1–2 câu NGẮN (tối đa ~30 từ), 0–2 emoji; KHÔNG chứa hashtag" },
+            hashtags: { type: "array", items: { type: "string" }, description: "5–8 hashtag viết liền, không dấu, chữ thường" },
           },
           required: ["style", "text", "hashtags"],
         },
@@ -50,11 +50,37 @@ const POST_TOOL = {
   },
 };
 
-const SYSTEM = `Bạn là người làm nội dung TikTok cho một đơn vị tổ chức tour trekking / du lịch trải nghiệm ở Việt Nam.
-Viết tự nhiên như người Việt trẻ, không sáo rỗng, không bịa thông tin (giá, ngày, địa danh) không có trong video / lời thoại / thông tin thương hiệu.
-Caption: dòng đầu là móc (câu hỏi, con số, điều bất ngờ), sau đó 1–2 câu nội dung, cuối là kêu gọi hành động (bình luận, nhắn tin, đặt tour; có SĐT nếu được cung cấp).
-Hashtag: trộn hashtag rộng (#trekking #dulich #xuhuong) và hashtag riêng theo địa danh trong video; có hashtag thương hiệu nếu được cung cấp.
+const SYSTEM = `Bạn là người làm nội dung TikTok cho kênh trekking / leo núi ở Việt Nam (kênh "Giang Lang Thang").
+VIẾT NGẮN: mỗi phương án — cả caption lẫn hashtag — tổng chỉ khoảng 5–60 từ. Caption 1–2 câu ngắn, chất, như người trẻ nói; 0–2 emoji.
+Ngôn ngữ: tiếng Việt, tiếng Anh, hoặc trộn Anh–Việt tự nhiên (vd "Sunrise trên đỉnh Samu ☁️"). Trong 3 phương án nên có ít nhất 1 phương án tiếng Anh hoặc trộn.
+Không bịa thông tin (giá, ngày, địa danh) không có trong video / lời thoại / thông tin thương hiệu. Không cần câu kêu gọi dài dòng.
+Hashtag: 5–8 cái, viết liền không dấu, chữ thường, theo kiểu: #gianglangthang #trekking #leonui #<địa danh trong video, vd lungcung, kyquansan, samu> #viral #xuhuong.
+Luôn có #gianglangthang #trekking và #xuhuong hoặc #viral; thêm tên địa danh thấy trong video / lời thoại.
 Chữ ảnh bìa: rất ngắn, đọc được trong 1 giây trên màn hình nhỏ.`;
+
+/** Hashtag mặc định của kênh (thêm nếu AI quên) */
+const MUST_TAGS = ["#gianglangthang", "#trekking", "#leonui", "#viral", "#xuhuong"];
+/** Bỏ dấu tiếng Việt, viết liền, chữ thường */
+const tagOf = (h) =>
+  "#" +
+  String(h ?? "")
+    .replace(/^[#@]+/, "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
+    .replace(/[^a-zA-Z0-9_]/g, "")
+    .toLowerCase();
+const words = (s) => String(s).split(/\s+/).filter(Boolean);
+/** Cắt caption cho tổng (chữ + hashtag) ≤ 60 từ, cắt ở cuối câu nếu được */
+function trimCaption(text, nTags) {
+  const max = Math.max(8, 60 - nTags);
+  const w = words(text);
+  if (w.length <= max) return text;
+  const cut = w.slice(0, max).join(" ");
+  const end = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("! "), cut.lastIndexOf("? "));
+  return end > cut.length * 0.5 ? cut.slice(0, end + 1) : cut + "…";
+}
 
 const file = (jobId) => path.join(config.outputDir, `${jobId}_goiy.json`);
 
@@ -93,14 +119,18 @@ export async function makeSuggestions(job, { signal } = {}) {
     const fix = (t) => String(t ?? "").trim();
     const result = {
       createdAt: new Date().toISOString(),
-      captions: (raw.captions ?? []).slice(0, 3).map((c) => ({
-        style: fix(c.style).slice(0, 40),
-        text: fix(c.text).slice(0, 1200),
-        hashtags: (Array.isArray(c.hashtags) ? c.hashtags : [])
-          .map((h) => "#" + fix(h).replace(/^#+/, "").replace(/\s+/g, ""))
-          .filter((h) => h.length > 1)
-          .slice(0, 10),
-      })),
+      captions: (raw.captions ?? []).slice(0, 3).map((c) => {
+        // hashtag: chuẩn hoá, bỏ trùng, đảm bảo có tag của kênh + tag riêng trong trang Thương hiệu, tối đa 8
+        const own = String(brand.hashtags ?? "").split(/[\s,]+/).filter(Boolean).map(tagOf);
+        let tags = [...new Set([...(Array.isArray(c.hashtags) ? c.hashtags : []).map(tagOf), ...own])].filter((h) => h.length > 2);
+        for (const m of MUST_TAGS) if (!tags.includes(m)) tags.push(m);
+        const must = new Set([...MUST_TAGS.slice(0, 2), ...own]);
+        while (tags.length > 8) {
+          const i = tags.findLastIndex((h) => !must.has(h) && h !== "#xuhuong" && h !== "#viral");
+          tags.splice(i >= 0 ? i : tags.length - 1, 1);
+        }
+        return { style: fix(c.style).slice(0, 30), text: trimCaption(fix(c.text), tags.length), hashtags: tags };
+      }),
       coverTitles: (raw.cover_titles ?? []).slice(0, 6).map((c) => ({ script: fix(c.script).slice(0, 40), block: fix(c.block).slice(0, 60) })),
     };
     await fs.writeFile(file(job.id), JSON.stringify(result, null, 2), "utf8");

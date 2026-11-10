@@ -60,6 +60,9 @@ WHITE, BLACK, YEL = (255, 255, 255), (12, 12, 12), (255, 196, 0)
 # Phu de (them 09/11/2026): PHU_DE = "tung-tu" (kieu TikTok: chu hien TUNG TU dung luc noi, nay nhe) | "cum" (kieu cu)
 # MAU_NHAN = mau chu nhan / hop nhan (mac dinh vang cu; web app dat cam (255, 122, 26))
 PHU_DE = getattr(DA, "PHU_DE", "cum")
+# CHU_TREN_WEB (them 10/11/2026): KHONG ve phu de vao video nen — ghi captions.json (chu + moc tung tu + hieu ung AI goi y)
+# de web app ve chu bang bo ve chung (xem truoc + sua tung chu trong Studio, xuat bang @napi-rs/canvas).
+CHU_TREN_WEB = getattr(DA, "CHU_TREN_WEB", False)
 YEL = tuple(getattr(DA, "MAU_NHAN", YEL))
 GREY = (40, 40, 40)                                   # chi la sac do cua den, khong tinh la mau moi
 
@@ -245,6 +248,8 @@ def manual_plan():
             th = im.height - 2 * pad
             L = {"x": txt, "s": seg[0]["s"], "e": seg[-1]["e"], "kind": kind, "img": im, "pad": pad, "th": th,
                  "w": im.width - 2 * pad, "boxpad": s(18) if kind == "bold" else 0}
+            _dw = txt.split() or [txt]                   # moc tung tu hien thi (cho web)
+            L["wt"] = [(wd, seg[min(len(seg) - 1, j * len(seg) // len(_dw))]["s"]) for j, wd in enumerate(_dw)]
             if PHU_DE == "tung-tu":                      # tach tung tu, moi tu hien dung luc duoc noi
                 dws = txt.split() or [txt]
                 gap = f.getlength(" ")
@@ -1804,6 +1809,23 @@ def main():
     SFX.sort()
     ev = sorted([c["t0"] for c in capplan] + [x for t0, t1, _ in BR for x in (t0, t1)] + [0, DUR])
     print("  khoang cach su kien lon nhat: %.2fs | %d hieu ung am thanh | %d lan doi nen" % (max(b - a for a, b in zip(ev, ev[1:])), len(SFX), len(TRANS)))
+    if CHU_TREN_WEB:                                  # chu + hieu ung de web ve (moc giay tren ban dung)
+        WORK.mkdir(exist_ok=True)
+        KIND = {"thin": "cam", "bold": "hop", "lead": "lead", "sub": "sub"}
+        caps = [{"ci": c["ci"], "t0": round(max(0.0, c["t0"]), 3), "t1": round(c["t1"], 3),
+                 "lines": [{"text": L["x"], "kind": KIND[L["kind"]], "words": [{"w": w_, "t": round(t_, 3)} for w_, t_ in L["wt"]]}
+                           for L, _x, _y in c["lines"]]} for c in capplan]
+        ovs = []
+        for o in getattr(DA, "OVERLAYS", []):           # hieu ung AI goi y: moc theo so thu tu tu -> giay ban dung
+            o = dict(o); a = int(o.pop("w", -1)); b = int(o.pop("w2", a))
+            if not (0 <= a < len(TL)) or a not in WIDX: continue
+            t0 = mp(TL[a]["s"]) - 0.05
+            dflt = {"title": 2.6, "icon": 1.8, "card": 3.2, "pill": 3.0, "image": 3.0}.get(o.get("type"), 2.5)
+            t1 = mp(TL[b]["e"]) + 0.4 if (b > a and b < len(TL) and b in WIDX) else t0 + dflt
+            o.update(start=round(max(0.0, t0), 3), end=round(min(DUR, max(t1, t0 + 1.0)), 3)); ovs.append(o)
+        json.dump({"duration": round(DUR, 3), "landscape": LANDSCAPE, "captions": caps, "overlays": ovs},
+                  open(WORK / "captions.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+        print("captions.json: %d cum chu, %d hieu ung" % (len(caps), len(ovs)))
     if "--meta" in sys.argv:                          # chi tinh lai danh sach tieng (khong dung hinh) -> chay lai mix_engine
         WORK.mkdir(exist_ok=True)
         json.dump({"DUR": DUR, "SFX": SFX, "BAUDIO": BAUDIO, "BR": [(a, b, type(o).__name__) for a, b, o in BR]}, open(WORK / "meta.json", "w"))
@@ -1919,7 +1941,7 @@ def main():
                     ImageDraw.Draw(full).rounded_rectangle([bx - s(6), by - s(6), bx + fw + s(6), by + fh + s(6)], radius=s(46), fill=YEL + (255,))
                     full.alpha_composite(face, (bx, by))
                     out = full
-            else:
+            elif not CHU_TREN_WEB:
                 draw_captions(out, capplan, t)
             if not SMOOTH:                            # kieu cu: chop trang 2 khung khi doi nen
                 tr = next((x for x in TRANS if 0 <= t - x < 0.067), None)

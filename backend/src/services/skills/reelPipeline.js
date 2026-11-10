@@ -24,6 +24,8 @@ import { prepareSource, extractFrames } from "./sources.js";
 import { isVoiceless, loadTracks, planMontageWithClaude, heuristicMontage } from "./montage.js";
 import { videoEncoderOptions } from "../editor/filterGraph.js";
 import { finishVideo } from "./finish.js";
+import { canCompose, composeVideo, hasVisibleItems } from "../compose.js";
+import { readTimeline, refreshTimeline } from "../timeline.js";
 import { activeCta } from "../brand.js";
 import { GRADES, GRADE_LABELS } from "./planner.js";
 import os from "node:os";
@@ -88,8 +90,9 @@ export const SKILL_STAGES = {
   transcribing: [0, 14],
   planning: [14, 20],
   checking: [20, 23],
-  rendering: [23, 88],
-  mixing: [88, 97],
+  rendering: [23, 82],
+  mixing: [82, 88],
+  composing: [88, 97],
   upscaling: [97, 99],
 };
 export const SKILL_STEPS = [
@@ -97,7 +100,8 @@ export const SKILL_STEPS = [
   { stage: "planning", label: "AI lên kịch bản" },
   { stage: "checking", label: "Chạy khô B-roll" },
   { stage: "rendering", label: "Dựng hình 3D" },
-  { stage: "mixing", label: "Âm thanh & xuất" },
+  { stage: "mixing", label: "Âm thanh" },
+  { stage: "composing", label: "Chữ & hiệu ứng" },
 ];
 
 export const projectDir = (projectId) => path.join(config.projectsDir, projectId);
@@ -117,9 +121,10 @@ export function frameOf(src) {
 }
 
 /** Các tuỳ chọn dựng du_an.py (lưu lại để "chỉnh nhanh" dựng lại không cần AI) */
-export function duAnOptions(srcPath, music, options, gradeFilter, outRes = [1080, 1920]) {
+export function duAnOptions(srcPath, music, options, gradeFilter, outRes = [1080, 1920], webText = false) {
   return {
     outRes,
+    webText,
     src: srcPath,
     outName: "reel",
     music,
@@ -325,6 +330,24 @@ export async function runSkillEdit({ jobId, video, skill, options, report, warn,
   const info = { ...src.info, duration: src.duration };
   const frame = frameOf(src);
 
+  let produced;
+  let engineLines = [];
+  let mixLines = [];
+  const workDir = path.join(proj, draft ? "work_draft" : "work");
+  const baseFile = path.join(proj, "base.json");
+  const readBases = async () => JSON.parse(await fs.readFile(baseFile, "utf8").catch(() => "{}"));
+  // Chữ + hiệu ứng do web vẽ (Studio sửa được từng chữ) khi có @napi-rs/canvas; không có → engine tự vẽ chữ như cũ
+  const webText = await canCompose();
+  if (options.recompose) {
+    // ───── Chỉ ghép lại chữ + hiệu ứng (sửa trong Studio) — KHÔNG dựng lại video nền ─────
+    const b = (await readBases())[draft ? "draft" : "final"];
+    if (!b || !existsSync(b.path)) throw new Error("Không còn video nền của bản này — hãy dựng lại bản nháp.");
+    produced = b.path;
+    engineLines = b.lines ?? [];
+    isMontage = existsSync(montageFile);
+    review = JSON.parse(await fs.readFile(path.join(proj, "review.json"), "utf8").catch(() => "null"));
+    report("rendering", 1, "Dùng lại video nền đã dựng");
+  } else {
   // Thư viện nhạc: quét thư mục voice/chill (bài mới được chuẩn bị tự động)
   const cats = reuse ? await musicCategories(dir) : await refreshMusic(skill, { report, warn, signal });
 
@@ -405,7 +428,7 @@ export async function runSkillEdit({ jobId, video, skill, options, report, warn,
     result.warnings.forEach(warn);
 
     const grade = resolveGrade(options.grade, result.plan.grade);
-    const duOpts = duAnOptions(srcPath, voiceMusicFor(cats, options, warn), options, grade.filter, frameOf(src).size);
+    const duOpts = duAnOptions(srcPath, voiceMusicFor(cats, options, warn), options, grade.filter, frameOf(src).size, webText);
     const writePlan = async (plan) => {
       await fs.writeFile(path.join(proj, "du_an.py"), buildDuAnPy(plan, duOpts), "utf8");
       // Lưu kịch bản dạng JSON → "chỉnh nhanh" (sửa chữ, bỏ cảnh, đổi nhạc) dựng lại không cần AI
@@ -463,9 +486,6 @@ export async function runSkillEdit({ jobId, video, skill, options, report, warn,
   }
 
   const flag = draft ? ["--draft"] : [];
-  let produced;
-  let engineLines = [];
-  let mixLines = [];
   if (isMontage) {
     // ───── Montage: dựng thẳng bằng montage_engine.py (cắt theo nhịp, nhạc, -14 LUFS) ─────
     report("checking", 1);
@@ -493,6 +513,7 @@ export async function runSkillEdit({ jobId, video, skill, options, report, warn,
   if (!reuse || options.revised) await fs.rm(cutFile, { force: true }); // kịch bản mới / vừa chỉnh → cắt lại từ đầu
   const hookFile = path.join(path.dirname(cutFile), "hook.json");
   await fs.rm(hookFile, { force: true });
+  await fs.rm(path.join(path.dirname(cutFile), "captions.json"), { force: true });
   // Có nhạc thật không (sau "chỉnh nhanh" có thể đã tắt nhạc) → khỏi báo "nhạc ngắn hơn video" sai
   const savedPlan = JSON.parse(await fs.readFile(path.join(proj, "plan.json"), "utf8").catch(() => "null"));
   const hasMusic = savedPlan ? savedPlan.duOpts.music.length > 0 : Boolean(options.music?.length);
@@ -534,23 +555,51 @@ export async function runSkillEdit({ jobId, video, skill, options, report, warn,
 
   produced = path.join(proj, draft ? "reel_nhap720.mp4" : "reel.mp4");
   }
+    // Lưu video nền (chưa có chữ) → Studio xem trước + ghép lại chữ nhanh, không dựng lại
+    const bases = await readBases();
+    bases[draft ? "draft" : "final"] = { path: produced, lines: [...engineLines, ...mixLines] };
+    await fs.writeFile(baseFile, JSON.stringify(bases), "utf8");
+  }
   if (!existsSync(produced)) throw new Error("Dựng xong nhưng không thấy file video đầu ra.");
   await fs.mkdir(config.outputDir, { recursive: true });
   const finalPath = path.join(config.outputDir, `${jobId}.mp4`);
 
+  // ───── 5a. Chữ + hiệu ứng: vẽ bằng ĐÚNG bộ vẽ của Studio (thấy sao xuất vậy) ─────
+  const timeline = options.recompose
+    ? await readTimeline(proj)
+    : await refreshTimeline(proj, workDir, { landscape: frame.landscape, duration: (await probe(produced)).videoDuration });
+  if (timeline && hasVisibleItems(timeline)) {
+    if (!webText) throw new Error("Thiếu thư viện @napi-rs/canvas để vẽ chữ — chạy npm install trong thư mục backend.");
+    const out = path.join(proj, draft ? "chu_nhap720.mp4" : "chu.mp4");
+    const n = timeline.items.filter((it) => !it.hidden).length;
+    report("composing", 0, `Vẽ chữ + ${n} hiệu ứng`);
+    await composeVideo({
+      input: produced,
+      output: out,
+      timeline,
+      proj,
+      fontsDir: path.join(dir, "fonts"),
+      signal,
+      onProgress: (f) => report("composing", f, `Vẽ chữ + hiệu ứng ${Math.round(f * 100)}%`),
+    });
+    produced = out;
+  }
+
   // ───── 5b. Câu móc lên đầu (video voice) + đoạn kết CTA thương hiệu ─────
-  const finishInfo = { hook: 0, cta: 0 };
+  const finishInfo = { hook: 0, cta: 0, outro: 0 };
   {
     const hookFile = path.join(proj, draft ? "work_draft" : "work", "hook.json");
     const hook = !isMontage && options.hook !== false && existsSync(hookFile) ? JSON.parse(await fs.readFile(hookFile, "utf8")) : null;
     const cta = options.cta === false ? null : await activeCta();
-    if (hook || cta) {
-      const msg = [hook && "câu móc lên đầu", cta && "đoạn kết thương hiệu"].filter(Boolean).join(" + ");
-      report("mixing", 0.97, `Hoàn thiện: ${msg}`);
+    // Mọi video: kéo dài ~1,5s ở cuối + mờ dần (tắt bằng options.outro = false)
+    const outro = options.outro === false ? 0 : 1.5;
+    if (hook || cta || outro) {
+      const msg = [hook && "câu móc lên đầu", cta && "đoạn kết thương hiệu", outro && "kết thúc mờ dần"].filter(Boolean).join(" + ");
+      report("composing", 0.97, `Hoàn thiện: ${msg}`);
       const out = path.join(proj, draft ? "hoan_thien_nhap720.mp4" : "hoan_thien.mp4");
       Object.assign(
         finishInfo,
-        await finishVideo({ input: produced, output: out, hook, cta, signal, onProgress: (f) => report("mixing", 0.97 + f * 0.03, `Hoàn thiện: ${msg}`) }),
+        await finishVideo({ input: produced, output: out, hook, cta, outro, signal, onProgress: (f) => report("composing", 0.97 + f * 0.03, `Hoàn thiện: ${msg}`) }),
       );
       produced = out;
     }

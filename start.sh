@@ -33,8 +33,9 @@ command -v ffmpeg >/dev/null || warn "Chưa có ffmpeg → chạy ./setup.sh (c�
 
 # ── 2. Cài thư viện nếu chưa có (chỉ lần đầu) ──
 for dir in "$BE" "$FE"; do
-  if [ ! -d "$dir/node_modules" ]; then
-    say "Cài thư viện cho $(basename "$dir") (lần đầu, vài phút)..."
+  # Chưa cài, hoặc package.json vừa thêm thư viện mới (bản cập nhật) → cài lại
+  if [ ! -d "$dir/node_modules" ] || [ "$dir/package.json" -nt "$dir/node_modules/.package-lock.json" ]; then
+    say "Cài / cập nhật thư viện cho $(basename "$dir") (vài phút)..."
     (cd "$dir" && npm install) || die "npm install lỗi trong $(basename "$dir")"
   fi
 done
