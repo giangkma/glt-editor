@@ -1,5 +1,5 @@
 #!/bin/bash
-# Đẩy toàn bộ dự án VIDEO AI lên https://github.com/giangkma/glt-editor (bấm đúp để chạy)
+# Đẩy toàn bộ dự án GLT EDITOR lên https://github.com/giangkma/glt-editor (bấm đúp để chạy)
 set -e
 cd "$(dirname "$0")"
 REPO="https://github.com/giangkma/glt-editor.git"
@@ -13,7 +13,7 @@ fi
 git add -A
 if ! git diff --cached --quiet; then
   if git rev-parse HEAD >/dev/null 2>&1; then git commit -m "Cập nhật $(date '+%d/%m/%Y %H:%M')"
-  else git commit -m "VIDEO AI: web app tự edit video (Next.js + Express + skill reel-doc-3d)"; fi
+  else git commit -m "GLT EDITOR: web app tự edit video (Next.js + Express + skill reel-doc-3d)"; fi
 fi
 git branch -M main
 git remote get-url origin >/dev/null 2>&1 || git remote add origin "$REPO"

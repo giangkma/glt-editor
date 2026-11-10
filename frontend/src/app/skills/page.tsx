@@ -3,7 +3,7 @@ import { SiteHeader } from "@/components/layout/SiteHeader";
 import { SkillsManager } from "@/components/skills/SkillsManager";
 
 export const metadata: Metadata = {
-  title: "Skills — video.ai",
+  title: "Skills — GLT EDITOR",
   description: "Lưu skill edit video để dùng cho mọi lần Auto-Edit.",
 };
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ─────────────────────────────────────────────────────────────
-#  VIDEO AI — chạy cả Backend (Express) và Frontend (Next.js) bằng 1 lệnh
+#  GLT EDITOR — chạy cả Backend (Express) và Frontend (Next.js) bằng 1 lệnh
 #
 #    ./start.sh              chạy cả hai, tự mở trình duyệt
 #    ./start.sh --no-open    không tự mở trình duyệt

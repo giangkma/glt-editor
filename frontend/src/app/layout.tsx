@@ -10,7 +10,7 @@ const sans = Be_Vietnam_Pro({
 const mono = JetBrains_Mono({ subsets: ["latin", "vietnamese"], variable: "--font-mono" });
 
 export const metadata: Metadata = {
-  title: "Video AI — Auto Edit",
+  title: "GLT EDITOR — Auto Edit",
   description: "Tải video lên và để AI tự động biên tập.",
 };
 

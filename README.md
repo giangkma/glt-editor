@@ -1,4 +1,4 @@
-# GLT Editor — VIDEO AI
+# GLT Editor — GLT EDITOR
 
 Web app cá nhân **tự động edit video TikTok / Reels**: thả video (hoặc dán link Google Drive) → AI xem hình, nghe lời, lên kịch bản → cắt ghép, phụ đề từng từ, nhạc nền, ảnh bìa, đoạn kết thương hiệu → xuất 1080p / 4K / 4K 60fps.
 
@@ -27,7 +27,7 @@ Trên Mac có thể **bấm đúp `Cai dat lan dau.command`** thay cho lệnh tr
 ./start.sh          # chạy backend + frontend, tự mở trình duyệt
 ```
 
-Hoặc bấm đúp **`Chay VIDEO AI.command`** (Mac). `Ctrl + C` để tắt.
+Hoặc bấm đúp **`Chay GLT EDITOR.command`** (Mac). `Ctrl + C` để tắt.
 
 ## API key
 

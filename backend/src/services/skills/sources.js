@@ -22,7 +22,7 @@ const fitBlurVf = (TW, TH, fps) =>
   `[b]scale=${TW}:${TH}:force_original_aspect_ratio=decrease:flags=lanczos[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2,setsar=1,fps=${fps},format=yuv420p`;
 const NORM_OUT = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "14", "-c:a", "pcm_s16le", "-ar", "48000", "-ac", "2"];
 
-/** Đường dẫn trong filtergraph (thư mục "VIDEO AI" có dấu cách; Windows có ":") */
+/** Đường dẫn trong filtergraph (thư mục "GLT EDITOR" có dấu cách; Windows có ":") */
 const fgPath = (p) => `'${p.replace(/\\/g, "/").replace(/'/g, "'\\''")}'`;
 
 /**

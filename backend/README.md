@@ -1,4 +1,4 @@
-# Video AI — Backend (Bước 2)
+# GLT EDITOR — Backend (Bước 2)
 
 Node.js · Express 5 · Multer 2 (ES Modules, Node ≥ 18.17)
 

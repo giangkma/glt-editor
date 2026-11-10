@@ -679,7 +679,7 @@ export function buildDuAnPy(
   const broll = plan.broll.map((b) => `    (${b.from}, ${b.to}, ${toPy(b.template)}, ${toPy(b.params)}),`).join("\n");
   const behind = plan.behind.map((b) => `${b.cluster}: ${toPy(b.word)}`).join(", ");
   return `# -*- coding: utf-8 -*-
-# Tạo tự động bởi web app VIDEO AI (skill reel-doc-3d). Có thể sửa tay rồi dựng lại.
+# Tạo tự động bởi web app GLT EDITOR (skill reel-doc-3d). Có thể sửa tay rồi dựng lại.
 # ${plan.summary.replace(/\n/g, " ")}
 
 SRC = ${toPy(src)}

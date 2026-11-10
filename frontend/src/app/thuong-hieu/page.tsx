@@ -3,7 +3,7 @@ import { SiteHeader } from "@/components/layout/SiteHeader";
 import { BrandManager } from "@/components/brand/BrandManager";
 
 export const metadata: Metadata = {
-  title: "Thương hiệu — video.ai",
+  title: "Thương hiệu — GLT EDITOR",
   description: "Tên, SĐT, hashtag và đoạn kết CTA gắn vào cuối mọi video.",
 };
 

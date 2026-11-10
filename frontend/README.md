@@ -1,4 +1,4 @@
-# Video AI — Frontend (Bước 1)
+# GLT EDITOR — Frontend (Bước 1)
 
 Next.js 15 (App Router) · TypeScript · Tailwind CSS · Dark mode
 

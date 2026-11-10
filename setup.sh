@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ─────────────────────────────────────────────────────────────────────────────
-#  VIDEO AI — CÀI ĐẶT LẦN ĐẦU cho máy chưa có gì (macOS, hoặc Linux Ubuntu/Debian)
+#  GLT EDITOR — CÀI ĐẶT LẦN ĐẦU cho máy chưa có gì (macOS, hoặc Linux Ubuntu/Debian)
 #
 #    ./setup.sh            cài mọi thứ, hỏi API key, xong có thể chạy luôn
 #    ./setup.sh --yes      không hỏi gì (bỏ qua API key, tải sẵn mô hình giọng nói)
@@ -30,7 +30,7 @@ ask()  { # ask "câu hỏi" mặc_định(y/n)
 }
 
 OS="$(uname -s)"
-echo "${c_b}VIDEO AI — cài đặt lần đầu${c_off}  ($OS, thư mục: $ROOT)"
+echo "${c_b}GLT EDITOR — cài đặt lần đầu${c_off}  ($OS, thư mục: $ROOT)"
 
 # ═════════════════════ 1. Phần mềm hệ thống ═════════════════════
 step "1/6 Phần mềm hệ thống (Node.js, Python 3.12, FFmpeg, git)"
@@ -143,7 +143,7 @@ fi
 chmod +x "$ROOT/start.sh" "$ROOT"/*.command 2>/dev/null || true
 echo
 echo "${c_ok}${c_b}✅ CÀI ĐẶT XONG${c_off}"
-echo "   Chạy ứng dụng:  ./start.sh   (hoặc bấm đúp \"Chay VIDEO AI.command\" trên Mac)"
+echo "   Chạy ứng dụng:  ./start.sh   (hoặc bấm đúp \"Chay GLT EDITOR.command\" trên Mac)"
 grep -qE '^ANTHROPIC_API_KEY=.+' "$BE/.env" || echo "   Nhớ điền ANTHROPIC_API_KEY vào backend/.env để AI lên kịch bản."
 echo
 if [ "$YES" = 0 ] && ask "Mở ứng dụng luôn?" y; then exec "$ROOT/start.sh"; fi

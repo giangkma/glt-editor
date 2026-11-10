@@ -15,7 +15,9 @@ export function SiteHeader({ active }: { active: "home" | "skills" | "brand" }) 
     <header className="relative z-10 flex items-center justify-between px-6 py-5 sm:px-10">
       <Link href="/" className="flex items-center gap-2.5">
         <span className="h-2.5 w-2.5 rounded-full bg-accent shadow-[0_0_12px_rgba(198,255,61,0.8)]" />
-        <span className="text-sm font-medium tracking-tight">video.ai</span>
+        <span className="text-sm font-medium tracking-tight">
+          gianglangthang.vn
+        </span>
       </Link>
       <nav className="flex items-center gap-1">
         {MOCK_UPLOAD && (
