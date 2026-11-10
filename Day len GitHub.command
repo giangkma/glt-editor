@@ -12,7 +12,8 @@ fi
 [ -d .git ] || git init -b main
 git add -A
 if ! git diff --cached --quiet; then
-  git commit -m "VIDEO AI: web app tự edit video (Next.js + Express + skill reel-doc-3d)"
+  if git rev-parse HEAD >/dev/null 2>&1; then git commit -m "Cập nhật $(date '+%d/%m/%Y %H:%M')"
+  else git commit -m "VIDEO AI: web app tự edit video (Next.js + Express + skill reel-doc-3d)"; fi
 fi
 git branch -M main
 git remote get-url origin >/dev/null 2>&1 || git remote add origin "$REPO"

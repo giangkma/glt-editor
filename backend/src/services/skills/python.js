@@ -41,7 +41,9 @@ export function runPython(python, args, { cwd, signal, onLine, label = "python",
 
     const isWin = process.platform === "win32";
     const compat = compatPath();
-    const PATH = compat ? `${compat}${path.delimiter}${process.env.PATH ?? ""}` : process.env.PATH;
+    // ffmpeg-full (Homebrew, keg-only) không nằm trong PATH → thêm thư mục của nó để script Python gọi được cả ffprobe
+    const ffDir = process.env.FFMPEG_PATH ? path.dirname(process.env.FFMPEG_PATH) : "";
+    const PATH = [compat, ffDir, process.env.PATH ?? ""].filter(Boolean).join(path.delimiter);
     const child = spawn(python, args, {
       cwd,
       env: { ...process.env, PATH, PYTHONIOENCODING: "utf-8", PYTHONUNBUFFERED: "1", ...env },

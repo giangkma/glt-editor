@@ -20,11 +20,16 @@ warn() { echo "${c_warn}!${c_off} $*"; }
 die()  { echo "${c_err}✗ $*${c_off}"; exit 1; }
 
 # ── 1. Kiểm tra môi trường ──
-command -v node >/dev/null || die "Chưa có Node.js. Cài bằng: brew install node"
+# Homebrew + ffmpeg-full (keg-only) có thể chưa nằm trong PATH khi bấm đúp file .command
+for d in /opt/homebrew/bin /usr/local/bin /opt/homebrew/opt/ffmpeg-full/bin /usr/local/opt/ffmpeg-full/bin; do
+  [ -d "$d" ] && case ":$PATH:" in *":$d:"*) ;; *) PATH="$d:$PATH" ;; esac
+done
+export PATH
+command -v node >/dev/null || die "Chưa có Node.js — chạy ./setup.sh (cài đặt lần đầu) trước."
 command -v npm  >/dev/null || die "Chưa có npm (đi kèm Node.js)."
 [ -f "$BE/package.json" ] || die "Không thấy $BE/package.json"
 [ -f "$FE/package.json" ] || die "Không thấy $FE/package.json"
-command -v ffmpeg >/dev/null || warn "Chưa thấy ffmpeg trong PATH → cài: brew install ffmpeg-full (hoặc ffmpeg)"
+command -v ffmpeg >/dev/null || warn "Chưa có ffmpeg → chạy ./setup.sh (cài đặt lần đầu)"
 
 # ── 2. Cài thư viện nếu chưa có (chỉ lần đầu) ──
 for dir in "$BE" "$FE"; do
@@ -35,7 +40,7 @@ for dir in "$BE" "$FE"; do
 done
 [ -f "$BE/.env" ] || { [ -f "$BE/.env.example" ] && cp "$BE/.env.example" "$BE/.env" && warn "Đã tạo backend/.env từ .env.example — nhớ điền ANTHROPIC_API_KEY"; }
 if [ -d "$BE/skills/reel-doc-3d" ] && [ ! -x "$BE/skills/reel-doc-3d/venv/bin/python" ]; then
-  warn "Skill reel-doc-3d chưa cài môi trường Python → chạy: (cd backend && npm run skill:setup)"
+  warn "Skill reel-doc-3d chưa cài môi trường Python → chạy ./setup.sh"
 fi
 
 # ── 3. Cổng backend đang bị chiếm? ──
