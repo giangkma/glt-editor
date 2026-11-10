@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# Lớp "ffmpeg tương thích" cho script Python của skill (web tự đặt thư mục này lên đầu PATH khi chạy skill).
+# FFmpeg 7 trở lên đọc filter từ file bằng "-/filter_complex <file>"; FFmpeg 8 đã BỎ hẳn
+# "-filter_complex_script" / "-filter_script" mà reel_engine.py đang dùng → lỗi "exit status 8".
+# Script này đổi tuỳ chọn cũ sang cú pháp mới rồi chạy ffmpeg thật. FFmpeg cũ hơn 7 → giữ nguyên.
+
+self_dir="$(cd "$(dirname "$0")" && pwd)"
+
+# Tìm ffmpeg thật: FFMPEG_PATH → các thư mục trong PATH (bỏ qua chính thư mục này)
+real="${FFMPEG_PATH:-}"
+if [ -z "$real" ]; then
+  old_ifs="$IFS"; IFS=':'
+  for d in $PATH; do
+    [ "$d" = "$self_dir" ] && continue
+    if [ -x "$d/ffmpeg" ]; then real="$d/ffmpeg"; break; fi
+  done
+  IFS="$old_ifs"
+fi
+if [ -z "$real" ]; then echo "ffmpeg-compat: không tìm thấy ffmpeg thật trong PATH" >&2; exit 127; fi
+
+# Bản chính thức: "ffmpeg version 8.0..." | bản build từ git: "ffmpeg version N-..." (coi là mới)
+major="$("$real" -version 2>/dev/null | head -1 | sed -E 's/^ffmpeg version n?([0-9]+).*/\1/')"
+if [ -z "${FFMPEG_COMPAT_FORCE:-}" ] && [[ "$major" =~ ^[0-9]+$ ]] && [ "$major" -lt 7 ]; then
+  exec "$real" "$@"
+fi
+
+args=()
+for a in "$@"; do
+  case "$a" in
+    -filter_complex_script) args+=("-/filter_complex") ;;
+    -filter_script)         args+=("-/filter") ;;
+    -filter_script:*)       args+=("-/filter:${a#-filter_script:}") ;;
+    *)                      args+=("$a") ;;
+  esac
+done
+exec "$real" "${args[@]}"

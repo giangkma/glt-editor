@@ -1,0 +1,8 @@
+venv/
+models/
+fonts/
+nhac/*.wav
+nhac/*.json
+__pycache__/
+*.pyc
+work*/

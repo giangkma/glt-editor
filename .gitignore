@@ -1,0 +1,34 @@
+# ── Thư viện cài lại được (npm install / npm run skill:setup) ──
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+backend/skills/*/venv/
+backend/skills/*/models/
+backend/skills/*/fonts/
+
+# ── Bí mật: KHÔNG BAO GIỜ đẩy API key ──
+.env
+.env.*
+!.env.example
+
+# ── Dữ liệu khi chạy: video tải lên, bản dựng, dự án (rất nặng) ──
+backend/uploads/*
+!backend/uploads/.gitkeep
+backend/outputs/
+backend/tmp/
+backend/projects/
+backend/data/
+
+# ── Nhạc đã xử lý (tự tạo lại từ nhạc gốc khi chạy) ──
+backend/skills/*/nhac/*_full.wav
+backend/skills/*/nhac/*_grid.json
+backend/skills/*/nhac/*_nhip.json
+backend/skills/*/nhac/_thu_vien.json
+
+# ── Lịch sử git gốc của skill (tải từ repo khác) ──
+backend/skills/*/.git-skill-goc/
+
+.DS_Store
+__pycache__/
+*.pyc

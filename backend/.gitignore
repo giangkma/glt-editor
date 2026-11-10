@@ -1,0 +1,12 @@
+node_modules
+.env
+uploads/*
+!uploads/.gitkeep
+.DS_Store
+outputs/*
+tmp/
+projects/
+data/
+skills/*/venv/
+skills/*/models/
+skills/*/fonts/
